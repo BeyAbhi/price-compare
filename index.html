@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Price Compare — Smart Shopper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #080808; color: #fff; font-family: 'DM Sans', sans-serif; }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: #F8C200 !important;
+      box-shadow: 0 0 0 3px #F8C20022 !important;
+    }
+    .compare-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .compare-btn:active { transform: translateY(0); }
+    .suggestion-item:hover { background: #1c1c1c !important; }
+    .quick-btn:hover { border-color: #F8C20066 !important; color: #F8C200 !important; }
+    .buy-btn:hover { filter: brightness(1.2); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+    .platform-link:hover { opacity: 0.8; }
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 480px) {
+      .grid-cards { grid-template-columns: 1fr; }
+    }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const PLATFORMS = [
+      {
+        id: "amazon",
+        name: "Amazon",
+        color: "#FF9900",
+        bg: "#1a1008",
+        icon: "🛒",
+        searchUrl: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}`,
+      },
+      {
+        id: "flipkart",
+        name: "Flipkart",
+        color: "#2874F0",
+        bg: "#080f1a",
+        icon: "🏪",
+        searchUrl: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}`,
+      },
+      {
+        id: "blinkit",
+        name: "Blinkit",
+        color: "#F8C200",
+        bg: "#1a1600",
+        icon: "⚡",
+        searchUrl: (q) => `https://blinkit.com/s/?q=${encodeURIComponent(q)}`,
+      },
+      {
+        id: "milkbasket",
+        name: "Milkbasket",
+        color: "#00C16E",
+        bg: "#001a0e",
+        icon: "🥛",
+        searchUrl: (q) => `https://www.milkbasket.com/`,
+      },
+    ];
+
+    const SAMPLE_PRODUCTS = {
+      "amul butter 500g":         { amazon: {price:289,mrp:310,available:true,note:"Free delivery"},  flipkart:{price:278,mrp:310,available:true,note:"Grocery delivery"}, blinkit:{price:299,mrp:310,available:true,note:"10 min delivery"}, milkbasket:{price:265,mrp:310,available:true,note:"Morning delivery"} },
+      "tata salt 1kg":            { amazon: {price:22, mrp:24, available:true,note:"Pack of 6 avail"},flipkart:{price:21, mrp:24, available:true,note:"Express delivery"},  blinkit:{price:24, mrp:24, available:true,note:"10 min delivery"}, milkbasket:{price:20, mrp:24, available:true,note:"Subscribe & save"} },
+      "fortune sunflower oil 1l": { amazon: {price:142,mrp:160,available:true,note:"Free delivery"},  flipkart:{price:138,mrp:160,available:false,note:"Out of stock"},     blinkit:{price:145,mrp:160,available:true,note:"10 min delivery"}, milkbasket:{price:135,mrp:160,available:true,note:"Morning delivery"} },
+      "maggi noodles 420g":       { amazon: {price:68, mrp:80, available:true,note:"Pack of 6 avail"},flipkart:{price:72, mrp:80, available:true,note:"Grocery delivery"},  blinkit:{price:75, mrp:80, available:true,note:"10 min delivery"}, milkbasket:{price:65, mrp:80, available:false,note:"Not available"} },
+      "colgate toothpaste 200g":  { amazon: {price:82, mrp:95, available:true,note:"Free delivery"},  flipkart:{price:79, mrp:95, available:true,note:"Fast delivery"},     blinkit:{price:90, mrp:95, available:true,note:"10 min delivery"}, milkbasket:{price:76, mrp:95, available:true,note:"Morning delivery"} },
+      "surf excel 1kg":           { amazon: {price:198,mrp:225,available:true,note:"Free delivery"},  flipkart:{price:189,mrp:225,available:true,note:"Grocery delivery"},  blinkit:{price:210,mrp:225,available:true,note:"10 min delivery"}, milkbasket:{price:185,mrp:225,available:true,note:"Morning delivery"} },
+      "aashirvaad atta 5kg":      { amazon: {price:298,mrp:340,available:true,note:"Free delivery"},  flipkart:{price:289,mrp:340,available:true,note:"Express delivery"},  blinkit:{price:315,mrp:340,available:true,note:"10 min delivery"}, milkbasket:{price:279,mrp:340,available:true,note:"Morning delivery"} },
+      "britannia bread":          { amazon: {price:42, mrp:50, available:false,note:"Not available"}, flipkart:{price:45, mrp:50, available:true,note:"Grocery delivery"},  blinkit:{price:48, mrp:50, available:true,note:"10 min delivery"}, milkbasket:{price:40, mrp:50, available:true,note:"Morning delivery"} },
+      "haldirams aloo bhujia":    { amazon: {price:85, mrp:100,available:true,note:"Free delivery"},  flipkart:{price:80, mrp:100,available:true,note:"Express delivery"},  blinkit:{price:92, mrp:100,available:true,note:"10 min delivery"}, milkbasket:{price:78, mrp:100,available:true,note:"Morning delivery"} },
+      "dettol soap 75g":          { amazon: {price:32, mrp:40, available:true,note:"Pack of 4 avail"},flipkart:{price:35, mrp:40, available:true,note:"Fast delivery"},     blinkit:{price:38, mrp:40, available:true,note:"10 min delivery"}, milkbasket:{price:30, mrp:40, available:true,note:"Morning delivery"} },
+    };
+
+    const SUGGESTIONS = Object.keys(SAMPLE_PRODUCTS);
+
+    function ShimmerCard() {
+      return (
+        <div style={{
+          background: "#0d0d0d", border: "2px solid #1e1e1e",
+          borderRadius: 16, padding: 20,
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+            <div style={{ width:28,height:28,borderRadius:"50%",background:"#1a1a1a", animation:"shimmer 1.4s infinite", backgroundSize:"200% 100%", backgroundImage:"linear-gradient(90deg,#1a1a1a,#252525,#1a1a1a)" }} />
+            <div style={{ width:70,height:14,borderRadius:6,background:"#1a1a1a", animation:"shimmer 1.4s infinite", backgroundSize:"200% 100%", backgroundImage:"linear-gradient(90deg,#1a1a1a,#252525,#1a1a1a)" }} />
+          </div>
+          {[80,50,65].map((w,i) => (
+            <div key={i} style={{ height:i===0?28:13, width:`${w}%`, borderRadius:6, marginBottom:10,
+              backgroundImage:"linear-gradient(90deg,#1a1a1a,#252525,#1a1a1a)",
+              backgroundSize:"200% 100%", animation:"shimmer 1.4s infinite",
+            }} />
+          ))}
+        </div>
+      );
+    }
+
+    function PlatformCard({ platform, data, isWinner }) {
+      const discount = data?.available ? Math.round(((data.mrp - data.price) / data.mrp) * 100) : 0;
+      return (
+        <div style={{
+          background: isWinner && data?.available
+            ? `linear-gradient(135deg, ${platform.bg}, #0d0d0d)`
+            : "#0d0d0d",
+          border: isWinner && data?.available
+            ? `2px solid ${platform.color}`
+            : "2px solid #1e1e1e",
+          borderRadius: 16, padding: 20, position: "relative",
+          transition: "all 0.35s ease",
+          boxShadow: isWinner && data?.available
+            ? `0 0 28px ${platform.color}30, 0 4px 20px rgba(0,0,0,0.5)`
+            : "0 4px 16px rgba(0,0,0,0.3)",
+          transform: isWinner && data?.available ? "scale(1.03)" : "scale(1)",
+          opacity: data && !data.available ? 0.45 : 1,
+        }}>
+          {isWinner && data?.available && (
+            <div style={{
+              position:"absolute", top:-12, left:"50%", transform:"translateX(-50%)",
+              background: platform.color, color:"#000", fontWeight:800, fontSize:10,
+              padding:"3px 14px", borderRadius:20, letterSpacing:1.5, whiteSpace:"nowrap",
+              fontFamily:"'Space Mono', monospace",
+            }}>✦ CHEAPEST</div>
+          )}
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+            <span style={{ fontSize:22 }}>{platform.icon}</span>
+            <span style={{ color:platform.color, fontWeight:700, fontSize:14, fontFamily:"'Space Mono', monospace" }}>
+              {platform.name}
+            </span>
+          </div>
+          {data ? (
+            <>
+              <div style={{ fontSize:28, fontWeight:800, color:data.available?"#fff":"#444",
+                fontFamily:"'Space Mono', monospace", marginBottom:6, lineHeight:1 }}>
+                {data.available ? `₹${data.price}` : "—"}
+              </div>
+              {data.available && (
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                  <span style={{ color:"#444", fontSize:12, textDecoration:"line-through" }}>₹{data.mrp}</span>
+                  <span style={{
+                    background:`${platform.color}20`, color:platform.color,
+                    fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20,
+                    fontFamily:"'Space Mono', monospace",
+                  }}>-{discount}%</span>
+                </div>
+              )}
+              <div style={{ color:"#555", fontSize:12 }}>{data.note}</div>
+            </>
+          ) : (
+            <div style={{ color:"#2a2a2a", fontSize:13, paddingTop:8 }}>Search a product</div>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [query, setQuery] = useState("");
+      const [results, setResults] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [searched, setSearched] = useState("");
+      const [showSug, setShowSug] = useState(false);
+      const [filtered, setFiltered] = useState([]);
+      const inputRef = useRef(null);
+
+      useEffect(() => {
+        if (query.length > 1) {
+          const f = SUGGESTIONS.filter(s => s.includes(query.toLowerCase()));
+          setFiltered(f);
+          setShowSug(f.length > 0);
+        } else {
+          setShowSug(false);
+        }
+      }, [query]);
+
+      const doSearch = (q) => {
+        const term = (q || query).trim().toLowerCase();
+        if (!term) return;
+        setLoading(true);
+        setResults(null);
+        setSearched(q || query);
+        setShowSug(false);
+        setTimeout(() => {
+          const found = SAMPLE_PRODUCTS[term] || generateRandom(term);
+          setResults(found);
+          setLoading(false);
+        }, 1400);
+      };
+
+      const generateRandom = (term) => {
+        const base = Math.floor(Math.random() * 700) + 80;
+        return PLATFORMS.reduce((acc, p) => {
+          const v = Math.random() * 0.22 - 0.06;
+          const price = Math.round(base * (1 + v));
+          acc[p.id] = { price, mrp: Math.round(price * 1.18), available: Math.random() > 0.12, note: "Estimated price" };
+          return acc;
+        }, {});
+      };
+
+      const getWinner = () => {
+        if (!results) return null;
+        let min = Infinity, id = null;
+        PLATFORMS.forEach(p => {
+          const d = results[p.id];
+          if (d?.available && d.price < min) { min = d.price; id = p.id; }
+        });
+        return id;
+      };
+
+      const getSavings = () => {
+        if (!results) return null;
+        const prices = PLATFORMS.map(p => results[p.id]).filter(d => d?.available).map(d => d.price);
+        if (prices.length < 2) return null;
+        return Math.max(...prices) - Math.min(...prices);
+      };
+
+      const winner = getWinner();
+      const savings = getSavings();
+      const winnerP = PLATFORMS.find(p => p.id === winner);
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#080808", paddingBottom:60 }}>
+
+          {/* Header */}
+          <div style={{
+            background:"linear-gradient(180deg,#0e0e0e,#080808)",
+            borderBottom:"1px solid #161616", padding:"32px 20px 26px", textAlign:"center",
+          }}>
+            <div style={{ fontSize:10, letterSpacing:4, color:"#F8C200",
+              fontFamily:"'Space Mono',monospace", marginBottom:10 }}>⚡ SMART SHOPPER</div>
+            <h1 style={{ fontSize:28, fontWeight:700, letterSpacing:-0.5, marginBottom:8 }}>
+              Price Compare
+            </h1>
+            <div style={{ display:"flex", justifyContent:"center", gap:16, flexWrap:"wrap" }}>
+              {PLATFORMS.map(p => (
+                <span key={p.id} style={{ color:p.color, fontSize:12, fontFamily:"'Space Mono',monospace" }}>
+                  {p.icon} {p.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div style={{ padding:"24px 16px 0", maxWidth:580, margin:"0 auto" }}>
+            <div style={{ position:"relative" }}>
+              <div style={{ display:"flex", gap:10 }}>
+                <input
+                  ref={inputRef}
+                  className="search-input"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && doSearch()}
+                  placeholder='e.g. "Amul Butter 500g"'
+                  style={{
+                    flex:1, background:"#111", border:"2px solid #1e1e1e",
+                    borderRadius:12, padding:"14px 16px", color:"#fff",
+                    fontSize:15, fontFamily:"'DM Sans',sans-serif", transition:"all 0.2s",
+                  }}
+                />
+                <button
+                  className="compare-btn"
+                  onClick={() => doSearch()}
+                  style={{
+                    background:"#F8C200", color:"#000", border:"none",
+                    borderRadius:12, padding:"14px 20px", fontWeight:700,
+                    fontSize:13, cursor:"pointer", fontFamily:"'Space Mono',monospace",
+                    transition:"all 0.2s", whiteSpace:"nowrap",
+                  }}
+                >COMPARE</button>
+              </div>
+
+              {/* Suggestions */}
+              {showSug && (
+                <div style={{
+                  position:"absolute", top:"calc(100% + 6px)", left:0, right:120,
+                  background:"#111", border:"1px solid #222", borderRadius:12,
+                  overflow:"hidden", zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,0.5)",
+                }}>
+                  {filtered.map(s => (
+                    <div
+                      key={s}
+                      className="suggestion-item"
+                      onClick={() => { setQuery(s); doSearch(s); }}
+                      style={{
+                        padding:"11px 16px", cursor:"pointer", fontSize:13,
+                        color:"#bbb", borderBottom:"1px solid #1a1a1a",
+                        transition:"background 0.15s", textTransform:"capitalize",
+                      }}
+                    >🔍 {s}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick picks */}
+            <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+              {SUGGESTIONS.slice(0,5).map(s => (
+                <button
+                  key={s}
+                  className="quick-btn"
+                  onClick={() => { setQuery(s); doSearch(s); }}
+                  style={{
+                    background:"#111", border:"1px solid #1e1e1e", color:"#555",
+                    borderRadius:20, padding:"5px 12px", fontSize:11,
+                    cursor:"pointer", fontFamily:"'DM Sans',sans-serif",
+                    transition:"all 0.2s", textTransform:"capitalize",
+                  }}
+                >{s}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Results */}
+          <div style={{ padding:"22px 16px 0", maxWidth:580, margin:"0 auto" }}>
+
+            {loading && (
+              <div>
+                <div style={{
+                  color:"#444", fontSize:11, fontFamily:"'Space Mono',monospace",
+                  marginBottom:16, animation:"pulse 1s infinite",
+                  display:"flex", alignItems:"center", gap:8,
+                }}>
+                  <div style={{ width:14,height:14,border:"2px solid #444",borderTopColor:"#F8C200",
+                    borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
+                  SCANNING PRICES...
+                </div>
+                <div className="grid-cards">
+                  {[0,1,2,3].map(i => <ShimmerCard key={i} />)}
+                </div>
+              </div>
+            )}
+
+            {!loading && results && (
+              <div style={{ animation:"fadeUp 0.4s ease" }}>
+                {/* Header row */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:18 }}>
+                  <div>
+                    <div style={{ fontSize:10,color:"#444",fontFamily:"'Space Mono',monospace",marginBottom:4 }}>RESULTS FOR</div>
+                    <div style={{ fontSize:16,fontWeight:600,textTransform:"capitalize" }}>{searched}</div>
+                  </div>
+                  {savings > 0 && (
+                    <div style={{
+                      background:"#00C16E11", border:"1px solid #00C16E33",
+                      color:"#00C16E", borderRadius:10, padding:"6px 12px",
+                      fontSize:11, fontFamily:"'Space Mono',monospace", fontWeight:700,
+                    }}>SAVE ₹{savings}</div>
+                  )}
+                </div>
+
+                {/* 4 cards */}
+                <div className="grid-cards">
+                  {PLATFORMS.map(p => (
+                    <PlatformCard
+                      key={p.id}
+                      platform={p}
+                      data={results[p.id]}
+                      isWinner={winner === p.id}
+                    />
+                  ))}
+                </div>
+
+                {/* Verdict banner */}
+                {winner && winnerP && (
+                  <div style={{
+                    marginTop:20,
+                    background:`linear-gradient(135deg,${winnerP.color}14,${winnerP.color}06)`,
+                    border:`1px solid ${winnerP.color}30`,
+                    borderRadius:16, padding:"18px 20px",
+                    display:"flex", alignItems:"center", justifyContent:"space-between", gap:12,
+                  }}>
+                    <div>
+                      <div style={{ fontSize:10,color:winnerP.color,fontFamily:"'Space Mono',monospace",marginBottom:5 }}>
+                        BEST DEAL TODAY
+                      </div>
+                      <div style={{ fontSize:18,fontWeight:700 }}>
+                        {winnerP.icon} {winnerP.name} — ₹{results[winner].price}
+                      </div>
+                      <div style={{ color:"#555",fontSize:12,marginTop:3 }}>{results[winner].note}</div>
+                    </div>
+                    <a
+                      href={winnerP.searchUrl(searched)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="buy-btn"
+                      style={{
+                        background:winnerP.color,
+                        color:["amazon","blinkit"].includes(winner) ? "#000":"#fff",
+                        borderRadius:12, padding:"11px 20px",
+                        fontWeight:700, fontSize:13, cursor:"pointer",
+                        fontFamily:"'Space Mono',monospace",
+                        textDecoration:"none", transition:"all 0.2s",
+                        display:"block", whiteSpace:"nowrap",
+                        boxShadow:`0 4px 16px ${winnerP.color}33`,
+                      }}
+                    >BUY NOW →</a>
+                  </div>
+                )}
+
+                {/* All platform links */}
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:14 }}>
+                  {PLATFORMS.map(p => results[p.id]?.available && (
+                    <a
+                      key={p.id}
+                      href={p.searchUrl(searched)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="platform-link"
+                      style={{
+                        background:"#111", border:`1px solid ${p.color}33`,
+                        color:p.color, borderRadius:8, padding:"6px 12px",
+                        fontSize:11, fontFamily:"'Space Mono',monospace",
+                        textDecoration:"none", transition:"opacity 0.2s",
+                      }}
+                    >{p.name} ↗</a>
+                  ))}
+                </div>
+
+                <div style={{ marginTop:14,color:"#2a2a2a",fontSize:11,fontFamily:"'Space Mono',monospace" }}>
+                  * Prices indicative. Tap platform links to verify live prices.
+                </div>
+              </div>
+            )}
+
+            {!loading && !results && (
+              <div style={{ textAlign:"center", paddingTop:48 }}>
+                <div style={{ fontSize:48, marginBottom:16 }}>🛍️</div>
+                <div style={{ color:"#2a2a2a", fontSize:15, fontWeight:600, marginBottom:8 }}>
+                  Search any product to compare
+                </div>
+                <div style={{ color:"#1e1e1e", fontSize:12 }}>
+                  Try: Amul Butter · Tata Salt · Maggi · Surf Excel
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
